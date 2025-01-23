@@ -12,10 +12,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/BaderEddineBenhirt/stable-galaxy/pkg/deployment"
+	"github.com/BaderEddineBenhirt/stable-galaxy/pkg/logging"
 	"github.com/BaderEddineBenhirt/stable-galaxy/pkg/rollback"
 )
 
 func main() {
+	logger := logging.NewLogger("info", false)
+
 	dockerConfig := deployment.DockerConfig{
 		ServiceName:   os.Getenv("DOCKER_SERVICE_NAME"),
 		Registry:      os.Getenv("DOCKER_REGISTRY"),
@@ -27,7 +30,7 @@ func main() {
 	}
 
 	dockerStrat := deployment.NewDockerStrategy(dockerConfig)
-	dockerRollback := rollback.NewService(buildRollbackConfig(), dockerStrat)
+	dockerRollback := rollback.NewService(buildRollbackConfig(), dockerStrat, logger)
 
 	if err := dockerRollback.Rollback(os.Getenv("ROLLBACK_FROM_VERSION")); err != nil {
 		log.Printf("Docker rollback failed: %v", err)
@@ -45,7 +48,7 @@ func main() {
 	}
 
 	k8sStrat := deployment.NewKubernetesStrategy(clientset, k8sConfig)
-	k8sRollback := rollback.NewService(buildRollbackConfig(), k8sStrat)
+	k8sRollback := rollback.NewService(buildRollbackConfig(), k8sStrat, logger)
 
 	if err := k8sRollback.Rollback(os.Getenv("ROLLBACK_FROM_VERSION")); err != nil {
 		log.Printf("K8s rollback failed: %v", err)
