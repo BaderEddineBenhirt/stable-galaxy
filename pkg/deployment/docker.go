@@ -34,6 +34,10 @@ func (d *DockerStrategy) buildImageTag(version string) string {
 	return fmt.Sprintf("%s/%s:%s", d.config.Registry, d.config.ServiceName, version)
 }
 
+func (d *DockerStrategy) StrategyName() string {
+	return "docker"
+}
+
 func (d *DockerStrategy) buildUpdateCommand(imageTag string) *exec.Cmd {
 	args := []string{"service", "update", "--image", imageTag}
 

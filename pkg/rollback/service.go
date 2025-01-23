@@ -1,11 +1,11 @@
 package rollback
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
 	"github.com/BaderEddineBenhirt/stable-galaxy/pkg/deployment"
+	"github.com/BaderEddineBenhirt/stable-galaxy/pkg/errors"
 	"github.com/BaderEddineBenhirt/stable-galaxy/pkg/logging"
 )
 
@@ -46,12 +46,21 @@ func (s *Service) findPreviousStableVersion(currentVersion string) (string, erro
 			return s.versions[i], nil
 		}
 	}
-	return "", fmt.Errorf("no stable previous version found")
+	return "", errors.NewValidationError("no stable previous version found", nil)
 }
 
 func (s *Service) executeRollback(from, to string) error {
 	s.logger.Debug().Str("from", from).Str("to", to).Msg("Executing rollback")
-	return s.strategy.Rollback(from, to)
+	meta := map[string]interface{}{
+		"from_version": from,
+		"to_version":   to,
+		"strategy":     s.strategy.StrategyName(),
+	}
+
+	if err := s.strategy.Rollback(from, to); err != nil {
+		return errors.NewDeploymentError("rollback execution failed", err, meta)
+	}
+	return nil
 }
 
 func (s *Service) Rollback(currentVersion string) error {
@@ -60,14 +69,14 @@ func (s *Service) Rollback(currentVersion string) error {
 	targetVersion, err := s.findPreviousStableVersion(currentVersion)
 	if err != nil {
 		s.logger.Error().Err(err).Str("current_version", currentVersion).Msg("Failed to find stable version")
-		return fmt.Errorf("failed to find stable version: %w", err)
+		return errors.NewValidationError("failed to find stable version", err)
 	}
 
 	if s.config.PreRollbackHook != nil {
 		s.logger.Debug().Msg("Executing pre-rollback hook")
 		if err := s.config.PreRollbackHook(); err != nil {
 			s.logger.Error().Err(err).Msg("Pre-rollback hook failed")
-			return fmt.Errorf("pre-rollback hook failed: %w", err)
+			return errors.NewDeploymentError("pre-rollback hook failed", err, nil)
 		}
 	}
 
@@ -80,7 +89,7 @@ func (s *Service) Rollback(currentVersion string) error {
 				if s.config.OnFailureHook != nil {
 					s.config.OnFailureHook(err)
 				}
-				return fmt.Errorf("rollback failed after %d attempts: %w", attempt, err)
+				return errors.NewDeploymentError("rollback failed after all attempts", err, nil)
 			}
 			s.logger.Warn().Err(err).Int("attempt", attempt).Dur("backoff", s.config.BackoffDuration).Msg("Retrying after backoff")
 			time.Sleep(s.config.BackoffDuration)
@@ -93,7 +102,7 @@ func (s *Service) Rollback(currentVersion string) error {
 		s.logger.Debug().Msg("Executing post-rollback hook")
 		if err := s.config.PostRollbackHook(); err != nil {
 			s.logger.Error().Err(err).Msg("Post-rollback hook failed")
-			return fmt.Errorf("post-rollback hook failed: %w", err)
+			return errors.NewDeploymentError("post-rollback hook failed", err, nil)
 		}
 	}
 

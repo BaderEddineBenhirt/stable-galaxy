@@ -50,6 +50,10 @@ func (k *KubernetesStrategy) buildImage(version string) string {
 	return fmt.Sprintf("%s:%s", k.config.Deployment, version)
 }
 
+func (k *KubernetesStrategy) StrategyName() string {
+	return "kubernetes"
+}
+
 func (k *KubernetesStrategy) updateDeployment(deployment *appsv1.Deployment, version string) {
 	for i := range deployment.Spec.Template.Spec.Containers {
 		deployment.Spec.Template.Spec.Containers[i].Image = k.buildImage(version)
